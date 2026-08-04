@@ -210,7 +210,6 @@
       --red: #FF3333;
     }
 
-    /* 2. CHỈNH OVERRIDE FONT STYLE TỰ ĐỘNG */
     body[data-font="sans"] {
       --mono: var(--sans);
     }
@@ -219,7 +218,6 @@
       --mono: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
     }
 
-    /* 3. CORE CSS (Bố cục giao diện - Đã làm sạch màu hardcode) */
     * {
       box-sizing: border-box;
     }
@@ -393,7 +391,6 @@
       }
     }
 
-    /* Toolbar */
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -447,6 +444,16 @@
       color: var(--red);
     }
 
+    .settings-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .settings-actions .btn {
+      justify-content: center;
+    }
+
     .spacer {
       flex: 1;
     }
@@ -471,7 +478,6 @@
       color: var(--red);
     }
 
-    /* Weekly board */
     .board {
       position: relative;
       overflow: hidden;
@@ -652,6 +658,7 @@
 
     .tt-col {
       position: relative;
+      cursor: cell;
       border-left: 1px solid var(--line-soft);
       background-image: linear-gradient(to bottom, var(--line-soft) 1px, transparent 1px);
       background-repeat: repeat-y;
@@ -726,7 +733,6 @@
       background: var(--red);
     }
 
-    /* KPI */
     .grid-kpi {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
@@ -797,7 +803,6 @@
       background: linear-gradient(90deg, var(--amber), var(--gold));
     }
 
-    /* Layout cols */
     .cols-2 {
       display: grid;
       grid-template-columns: 1.15fr 1fr;
@@ -846,7 +851,6 @@
       margin-left: 2px;
     }
 
-    /* Chart */
     .chart-wrap {
       margin: 0 -4px;
       min-height: 230px;
@@ -954,7 +958,6 @@
       text-align: right;
     }
 
-    /* Donut */
     .fleet {
       display: grid;
       grid-template-columns: 160px 1fr;
@@ -1030,7 +1033,6 @@
       text-align: right;
     }
 
-    /* Alerts / Reminders */
     .alerts {
       display: flex;
       flex-direction: column;
@@ -1092,7 +1094,6 @@
       padding: 18px;
     }
 
-    /* Table */
     .tools {
       display: flex;
       gap: 8px;
@@ -1195,7 +1196,6 @@
       white-space: nowrap;
     }
 
-    /* Data source note */
     .datasrc {
       display: flex;
       gap: 13px;
@@ -1237,7 +1237,6 @@
       font-weight: 600;
     }
 
-    /* Modal */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -1478,10 +1477,6 @@
       <button class="btn ghost" id="settingsBtn">⚙️ Settings</button>
       <span class="spacer"></span>
       <button class="btn ghost" id="youtubeBtn"> Go to youtube for music :)</button>
-      <button class="btn ghost" id="importIcsBtn">Import calendar</button>
-      <button class="btn ghost" id="importJsonBtn">Import JSON</button>
-      <button class="btn ghost" id="exportJsonBtn">Export JSON</button>
-      <button class="btn ghost danger" id="resetBtn">Reset Template</button>
       <input type="file" id="icsInput" accept=".ics,text/calendar" hidden>
       <input type="file" id="jsonInput" accept=".json,application/json" hidden>
     </div>
@@ -1611,7 +1606,6 @@
       </div>
     </section>
   </div>
-  <!-- Modal shell -->
   <div class="modal-backdrop" id="modal">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-head">
@@ -1897,13 +1891,21 @@
             + "</div>";
         });
         const now = (isT && nowMin >= rs && nowMin <= re) ? '<div class="tt-now" style="top:' + ((nowMin - rs) / 60 * HH) + 'px"></div>' : "";
-        cols += '<div class="tt-col' + (isT ? " today" : "") + '" style="height:' + totalH + "px;background-size:100% " + HH + 'px">' + blocks + now + "</div>";
+        cols += '<div class="tt-col' + (isT ? " today" : "") + '" data-day="' + i + '" title="Click an empty slot to add a class" style="height:' + totalH + "px;background-size:100% " + HH + 'px">' + blocks + now + "</div>";
       }
       el.innerHTML = '<div class="tt"><div class="tt-scroll"><div class="tt-inner">'
         + '<div class="tt-head" style="' + grid + '">' + head + "</div>"
         + '<div class="tt-body" style="' + grid + '"><div class="tt-gutter" style="height:' + totalH + 'px">' + gutter + "</div>" + cols + "</div>"
         + "</div></div></div>";
       el.querySelectorAll(".tt-block").forEach(b => b.onclick = () => { const c = courseById(b.dataset.id); if (c) openCourseModal(c); });
+      el.querySelectorAll(".tt-col").forEach(colEl => colEl.addEventListener("click", e => {
+        if (e.target.closest(".tt-block")) return;                       // clicking an existing class -> edit it, not add
+        const rect = colEl.getBoundingClientRect();
+        let minute = rs + ((e.clientY - rect.top) / HH) * 60;            // vertical position -> minutes of day
+        minute = Math.max(rs, Math.min(re - 60, Math.round(minute / 15) * 15));   // snap to 15 min, keep 1h inside range
+        const fmtT = m => pad(Math.floor(m / 60)) + ":" + pad(m % 60);
+        openCourseModal(null, { meetingDays: [+colEl.dataset.day], start: fmtT(minute), end: fmtT(minute + 60) });
+      }));
     }
 
     function computeStreak() {
@@ -2165,8 +2167,8 @@
       setTimeout(() => document.getElementById("f_title").focus(), 30);
     }
 
-    function openCourseModal(course) {
-      const c = course || { name: "", code: "", color: "#C25A2B", instructor: "", meetingDays: [], start: "", end: "", location: "", syllabusTotal: "", syllabusDone: "" };
+    function openCourseModal(course, prefill) {
+      const c = course || Object.assign({ name: "", code: "", color: "#C25A2B", instructor: "", meetingDays: [], start: "", end: "", location: "", syllabusTotal: "", syllabusDone: "" }, prefill || {});
       const editing = !!course;
       document.getElementById("modalTitle").textContent = editing ? "Edit Course" : "Add Course";
       const swatches = PALETTE.map(col => '<span class="swatch' + (col === c.color ? " on" : "") + '" data-col="' + col + '" style="background:' + col + '"></span>').join("");
@@ -2183,9 +2185,7 @@
         + '<div class="field"><label>Start Time</label><input type="time" id="cf_start" value="' + esc(c.start || "") + '"></div>'
         + '<div class="field"><label>End Time</label><input type="time" id="cf_end" value="' + esc(c.end || "") + '"></div>'
         + '<div class="field full"><label>Location (Campus)</label>'
-        + '<select id="cf_loc_sel">' + campusOpts + '</select>'
-        + '<input id="cf_loc" placeholder="Enter address" value="' + esc(isCustomLoc ? (c.location || "") : "") + '" style="margin-top:6px;display:' + (isCustomLoc ? "block" : "none") + '"></div>'
-        + '<div class="field"><label>Total Assignments (Syllabus)</label><input type="number" min="0" id="cf_stot" value="' + esc(c.syllabusTotal || "") + '"></div>'
+        + '<input id="cf_loc" placeholder="Enter address" value="' + esc(c.location || "") + '"></div>'
         + '<div class="field"><label>Completed Assignments</label><input type="number" min="0" id="cf_sdone" value="' + esc(c.syllabusDone || "") + '"></div>'
         + "</div>";
       let curColor = c.color;
@@ -2194,8 +2194,6 @@
         s.classList.add("on"); curColor = s.dataset.col;
       });
       document.querySelectorAll("#cf_days .day-chip").forEach(s => s.onclick = () => s.classList.toggle("on"));
-      const locSel = document.getElementById("cf_loc_sel"), locInp = document.getElementById("cf_loc");
-      locSel.onchange = () => { const custom = locSel.value === "__custom"; locInp.style.display = custom ? "block" : "none"; if (custom) locInp.focus(); };
       const del = document.getElementById("modalDelete");
       del.style.display = editing ? "inline-flex" : "none";
       del.onclick = editing ? () => { if (confirm("Delete this course? All tasks associated with the course will be unlinked.")) { deleteCourse(c.id); hideModal(); } } : null;
@@ -2211,7 +2209,7 @@
           meetingDays: mdays,
           start: document.getElementById("cf_start").value,
           end: document.getElementById("cf_end").value,
-          location: (document.getElementById("cf_loc_sel").value === "__custom" ? document.getElementById("cf_loc").value.trim() : document.getElementById("cf_loc_sel").value),
+          location: document.getElementById("cf_loc").value.trim(),
           syllabusTotal: parseInt(document.getElementById("cf_stot").value) || 0,
           syllabusDone: parseInt(document.getElementById("cf_sdone").value) || 0
         };
@@ -2311,12 +2309,8 @@
     function wireEvents() {
       document.getElementById("addTaskBtn").onclick = () => openTaskModal(null);
       document.getElementById("addCourseBtn").onclick = () => openCourseModal(null);
-      document.getElementById("exportJsonBtn").onclick = exportJson;
-      document.getElementById("importJsonBtn").onclick = () => document.getElementById("jsonInput").click();
-      document.getElementById("importIcsBtn").onclick = () => document.getElementById("icsInput").click();
       document.getElementById("jsonInput").onchange = e => { if (e.target.files[0]) importJsonFile(e.target.files[0]); e.target.value = ""; };
       document.getElementById("icsInput").onchange = e => { if (e.target.files[0]) importIcsFile(e.target.files[0]); e.target.value = ""; };
-      document.getElementById("resetBtn").onclick = () => { if (confirm("Delete all data and load sample data?")) { data = { courses: [], tasks: [] }; normalizeData(); saveData(); renderAll(); } };
       document.getElementById("modalCancel").onclick = hideModal;
       document.getElementById("modalCancel2").onclick = hideModal;
       modalEl().addEventListener("click", e => { if (e.target === modalEl()) hideModal(); });
@@ -2350,7 +2344,6 @@
     init();
   </script>
   <script>
-    // 1. Áp dụng Theme và Font khi tải trang
     document.addEventListener("DOMContentLoaded", () => {
       const currentTheme = localStorage.getItem("sp:theme") || "default";
       document.body.setAttribute("data-theme", currentTheme);
@@ -2363,7 +2356,6 @@
         settingsBtn.addEventListener("click", openSettingsModal);
       }
     });
-    // 2. Hàm mở Modal Settings
     function openSettingsModal() {
       const modal = document.getElementById("modal");
       const modalTitle = document.getElementById("modalTitle");
@@ -2376,6 +2368,7 @@
       if (modalDelete) modalDelete.style.display = "none";
       const curTheme = localStorage.getItem("sp:theme") || "default";
       const curFont = localStorage.getItem("sp:font") || "mono";
+      const curTz = localStorage.getItem("sp:timezone") || "auto";
       modalBody.innerHTML = `
         <div class="form-grid">
           <div class="field full">
@@ -2397,9 +2390,9 @@
           <div class="field full" style="margin-top: 8px;">
             <label>Font Style</label>
             <select id="setFont">
-                <option value="mono" ${curFont === 'mono' ? 'selected' : ''}>Monospace (Mặc định)</option>
-                <option value="sans" ${curFont === 'sans' ? 'selected' : ''}>Sans-serif (Hiện đại)</option>
-                <option value="serif" ${curFont === 'serif' ? 'selected' : ''}>Serif (Cổ điển)</option>
+                <option value="mono" ${curFont === 'mono' ? 'selected' : ''}>Monospace (Default)</option>
+                <option value="sans" ${curFont === 'sans' ? 'selected' : ''}>Sans-serif (Modern)</option>
+                <option value="serif" ${curFont === 'serif' ? 'selected' : ''}>Serif (Classic)</option>
                 <option value="times" ${curFont === 'times' ? 'selected' : ''}>Times New Roman</option>
                 <option value="comic" ${curFont === 'comic' ? 'selected' : ''}>Comic Sans</option>
                 <option value="cursive" ${curFont === 'cursive' ? 'selected' : ''}>Cursive</option>
@@ -2409,13 +2402,53 @@
                 <option value="verdana" ${curFont === 'verdana' ? 'selected' : ''}>Verdana</option>
             </select>
           </div>
+          <div class="field full">
+    <label>Timezone</label>
+    <select id="timezoneSelect">
+        <option value="auto" ${curTz === 'auto' ? 'selected' : ''}>Automatic (Based on Device)</option>
+        <option value="Asia/Ho_Chi_Minh" ${curTz === 'Asia/Ho_Chi_Minh' ? 'selected' : ''}>UTC+07:00 (Vietnam)</option>
+        <option value="America/New_York" ${curTz === 'America/New_York' ? 'selected' : ''}>UTC-05:00 (New York)</option>
+        <option value="America/Los_Angeles" ${curTz === 'America/Los_Angeles' ? 'selected' : ''}>UTC-08:00 (Pacific Time)</option>
+        <option value="Europe/London" ${curTz === 'Europe/London' ? 'selected' : ''}>UTC+00:00 (London)</option>
+        <option value="Asia/Tokyo" ${curTz === 'Asia/Tokyo' ? 'selected' : ''}>UTC+09:00 (Tokyo)</option>
+        <option value="Asia/Shanghai" ${curTz === 'Asia/Shanghai' ? 'selected' : ''}>UTC+08:00 (Shanghai)</option>
+    </select>
+</div>
+          <div class="field full">
+            <label>Data & Template</label>
+            <div class="settings-actions">
+              <button class="btn ghost" id="importIcsBtn">Import calendar</button>
+              <button class="btn ghost" id="importJsonBtn">Import JSON</button>
+              <button class="btn ghost" id="exportJsonBtn">Export JSON</button>
+              <button class="btn ghost danger" id="resetBtn">Reset Template</button>
+            </div>
+          </div>
         </div>
       `;
       document.getElementById("setTheme").onchange = (e) => document.body.setAttribute("data-theme", e.target.value);
       document.getElementById("setFont").onchange = (e) => document.body.setAttribute("data-font", e.target.value);
+      document.getElementById("timezoneSelect").onchange = (e) => {
+        localStorage.setItem("sp:timezone", e.target.value);
+        if (typeof tickClock === "function") tickClock();
+      };
+      document.getElementById("exportJsonBtn").onclick = exportJson;
+      document.getElementById("importJsonBtn").onclick = () => document.getElementById("jsonInput").click();
+      document.getElementById("importIcsBtn").onclick = () => document.getElementById("icsInput").click();
+      document.getElementById("resetBtn").onclick = () => {
+        if (confirm("Delete all data and load sample data?")) {
+          data = { courses: [], tasks: [] };
+          normalizeData();
+          saveData();
+          renderAll();
+          modal.classList.remove("show");
+        }
+      };
       modalSave.onclick = () => {
         localStorage.setItem("sp:theme", document.getElementById("setTheme").value);
         localStorage.setItem("sp:font", document.getElementById("setFont").value);
+        const selTz = document.getElementById("timezoneSelect").value;
+        localStorage.setItem("sp:timezone", selTz);
+        if (typeof tickClock === "function") tickClock();
         modal.classList.remove("show");
       };
       const cancelAction = () => {
